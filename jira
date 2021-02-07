@@ -58,7 +58,7 @@
   "")
 (defmethod render-content "doc" [data ctx]
   (s/join "\n"
-        (render-children (get data "content") ctx)))
+          (render-children (get data "content") ctx)))
 
 (defmethod render-content "paragraph" [data ctx]
   ;(str ctx (s/join "  " (render-children (get data "content") ctx))))
@@ -77,11 +77,11 @@
   "TODO: ORDERED LIST")
 
 (defmethod render-content "bulletList" [data ctx]
-   (s/join "\n" (render-children (get data "content") 
-                                 (str ctx "  * " ))))
+  (s/join "\n" (render-children (get data "content")
+                                (str ctx "  * "))))
 
 (defmethod render-content "listItem" [data ctx]
-    (s/join "\n" (render-children (get data "content") ctx)))
+  (s/join "\n" (render-children (get data "content") ctx)))
 
 (defmethod render-content "mediaSingle" [data ctx]
   "TODO: media single"
@@ -94,7 +94,6 @@
 (defmethod render-content "code" [data ctx]
   "TODO: CODE HERE")
 
-
 (defn get-sprint
   "this is sketchy."
   [issue]
@@ -103,7 +102,7 @@
     (get sprint? "name")))
 
 (defn render-comment [cmt ctx]
-  (println (str ctx 
+  (println (str ctx
                 (get-in cmt ["author" "displayName"])
                 " on "
                 (get-in cmt ["created"])))
@@ -111,7 +110,7 @@
   (println (render-content (get-in cmt ["body"])
                            (str ctx "    "))))
 
-    (comment "
+(comment "
     MAIN-322
     Epic:   Workflow  ** how do we get this?
     Priority: High
@@ -136,8 +135,8 @@
 (defn render-detail-view [issue]
   (println (get issue "key"))
   (println (s/join "\n" (reflow-lines  (get-in issue ["fields" "summary"])
-                         *eight*
-                         *max-width*)))
+                                       *eight*
+                                       *max-width*)))
   (println)
   (println (str *eight* "https://avalancheassociation.atlassian.net/browse/" (get issue "key")))
   (println)
@@ -162,8 +161,6 @@
       (do (println "COMMENTS")
           (doseq [cmt cmts]
             (render-comment cmt *eight*))))))
-
-
 
 (def status-kw
   {"Done"                     :done
@@ -276,7 +273,7 @@
   (-> (jira-get id)
       :body
       j/read-string
-      #_ jdump
+      #_jdump
       (render-detail-view)))
 
 (defn main []
