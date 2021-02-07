@@ -31,8 +31,9 @@
         indent (clean-prefix first-prefix)
         xlines (reduce (fn [[lines l] next-word]
                          (if (< width (count-after-add l next-word))
-                           [(conj lines l) (str indent " " next-word)]
-                           [lines (str l " " next-word)]))
+                           ;; The appending of " " leaves a trailing space on lines, eww
+                           [(conj lines l) (str indent next-word " ")]
+                           [lines (str l next-word " ")]))
 
                        [[] first-prefix]
                        words)
@@ -76,17 +77,21 @@
   "TODO: ORDERED LIST")
 
 (defmethod render-content "bulletList" [data ctx]
-   (s/join "\n" (render-children (get data "content") ctx)))
+   (s/join "\n" (render-children (get data "content") 
+                                 (str ctx "  * " ))))
 
 (defmethod render-content "listItem" [data ctx]
-  (let [new-ctx (str ctx "  * ")]
-    (s/join "\n" (render-children (get data "content") ctx))))
+    (s/join "\n" (render-children (get data "content") ctx)))
 
 (defmethod render-content "mediaSingle" [data ctx]
-  "TOOD: media single")
+  "TODO: media single"
+  (prn data))
 (defmethod render-content "link" [data ctx]
   "TODO: LINK HERE")
 (defmethod render-content "codeBlock" [data ctx]
+  "TODO: CODE HERE")
+
+(defmethod render-content "code" [data ctx]
   "TODO: CODE HERE")
 
 
@@ -97,17 +102,15 @@
         sprint? (first sprint-list)]
     (get sprint? "name")))
 
+(defn render-comment [cmt ctx]
+  (println (str ctx 
+                (get-in cmt ["author" "displayName"])
+                " on "
+                (get-in cmt ["created"])))
+  ;(prn(get-in cmt ["body" "content"]))
+  (println (render-content (get-in cmt ["body"])
+                           (str ctx "    "))))
 
-(defn render-detail-view [issue]
-  (let [desc (get-in issue ["fields" "description"])]
-
-    (println (get issue "key"))
-    (println (s/join "\n" (reflow-lines  (get-in issue ["fields" "summary"])
-                           *eight*
-                           *max-width*)))
-    (println)
-
-    (println "INFO")
     (comment "
     MAIN-322
     Epic:   Workflow  ** how do we get this?
@@ -119,16 +122,47 @@
     Reporter: steve
     Development: Create branch
     ")
-    (println *eight* "Epic:" (get-in issue ["fields" "parent" "fields" "summary"]))
-    (println *eight* "Type:" (get-in issue ["fields" "issuetype" "name"]))
-    (println *eight* "Priority:" (get-in issue ["fields" "priority" "name"]))
-    (println *eight* "Assignee:" (get-in issue ["fields" "assignee" "displayName"]))
-    (println *eight* "Reporter:" (get-in issue ["fields" "creator" "displayName"]))
-    (if-let [sprint (get-sprint issue)]
-      (println *eight* "Sprint:" sprint))
-    (println)
-    (println "DESCRIPTION")
-    (render-content desc *eight*)))
+
+(defn render-attachments [issue prefix]
+  (let [chunks (for [a (get-in issue ["fields" "attachment"])]
+                 (str prefix
+                      (get a "filename")
+                      "\n"
+                      prefix
+                      "    "
+                      (get a "content")))]
+    (s/join "\n" chunks)))
+
+(defn render-detail-view [issue]
+  (println (get issue "key"))
+  (println (s/join "\n" (reflow-lines  (get-in issue ["fields" "summary"])
+                         *eight*
+                         *max-width*)))
+  (println)
+  (println (str *eight* "https://avalancheassociation.atlassian.net/browse/" (get issue "key")))
+  (println)
+
+  (println "INFO")
+  (println *eight* "Epic:" (get-in issue ["fields" "parent" "fields" "summary"]))
+  (println *eight* "Type:" (get-in issue ["fields" "issuetype" "name"]))
+  (println *eight* "Priority:" (get-in issue ["fields" "priority" "name"]))
+  (println *eight* "Assignee:" (get-in issue ["fields" "assignee" "displayName"]))
+  (println *eight* "Reporter:" (get-in issue ["fields" "creator" "displayName"]))
+  (if-let [sprint (get-sprint issue)]
+    (println *eight* "Sprint:" sprint))
+  (println)
+  (if-let [att (render-attachments issue *eight*)]
+    (do (println "ATTACHMENTS")
+        (println att)))
+  (println "DESCRIPTION")
+  (println (render-content (get-in issue ["fields" "description"]) *eight*))
+
+  (let [cmts (get-in issue ["fields" "comment" "comments"])]
+    (if (< 0 (count cmts))
+      (do (println "COMMENTS")
+          (doseq [cmt cmts]
+            (render-comment cmt *eight*))))))
+
 
 
 (def status-kw
@@ -239,11 +273,11 @@
 
 (defn show-details [id]
   ;(println (format "Showing: %s" id))
-  (println (-> (jira-get id)
-               :body
-               j/read-string
-               #_ jdump
-               (render-detail-view))))
+  (-> (jira-get id)
+      :body
+      j/read-string
+      #_ jdump
+      (render-detail-view)))
 
 (defn main []
   (if (= 1 (count *command-line-args*))
