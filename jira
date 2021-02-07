@@ -5,44 +5,101 @@
             [joker.http   :as h]
             [joker.base64 :refer [encode-string]]))
 
+(def *max-width* 72)
+
 (defn token []
   (let [tk (s/trim (slurp "/home/wharding/.atlassian_token"))
         st (str "wharding@avalancheassociation.ca:" tk)]
     (encode-string st)))
 
-(defn join
-  "join all strings in `c` with separator `sep`"
-  [sep c]
-  (apply str (interpose sep c)))
+;;; TEXT REFLOW
+
+(defn count-after-add
+  "how long will the last line be if we add the next word to it?"
+  [line next-word]
+  (+ (count line)
+     (count next-word)
+     ; for the space
+     1))
+
+(defn clean-prefix [prefix]
+  (s/replace prefix #"\S" " "))
+
+(defn reflow-lines [txt first-prefix width]
+  (let [words (s/split txt #"\s+")
+        indent (clean-prefix first-prefix)
+        xlines (reduce (fn [[lines l] next-word]
+                         (if (< width (count-after-add l next-word))
+                           [(conj lines l) (str indent " " next-word)]
+                           [lines (str l " " next-word)]))
+
+                       [[] first-prefix]
+                       words)
+        pr-lines (conj (first xlines) (second xlines))]
+    pr-lines))
 
 ;;; Content rendering for description
+
 
 (defmulti render-content
   "Recursively transform issue content into terminal readable string based
   on the 'type'"
-  (fn [c]
+  (fn [c _]
     (get c "type")))
 
-(defmethod render-content nil [cont]
+(defn render-children [children ctx]
+  (map (fn [child] (render-content child ctx))
+       children))
+
+(defmethod render-content nil [data ctx]
   ; there is no content, seems to be a thing
   "")
-(defmethod render-content "doc" [cont]
-  (join "\n"
-        (map render-content (get cont "content"))))
+(defmethod render-content "doc" [data ctx]
+  (s/join "\n"
+        (render-children (get data "content") ctx)))
 
-(defmethod render-content "paragraph" [cont]
-  (join "  " (map render-content (get cont "content"))))
+(defmethod render-content "paragraph" [data ctx]
+  ;(str ctx (s/join "  " (render-children (get data "content") ctx))))
+  (let [ch (render-children (get data "content") ctx)
+        block (s/join ch)
+        ll (reflow-lines block ctx *max-width*)]
+    (s/join "\n" ll)))
 
-(defmethod render-content "text" [cont]
-  (get cont "text"))
-(defmethod render-content "hardBreak" [cont]
+(defmethod render-content "text" [data ctx]
+  (get data "text"))
+
+(defmethod render-content "hardBreak" [data ctx]
   "\n")
-(defmethod render-content "orderedList" [cont] "UNORDERED LIST")
-(defmethod render-content "bulletList" [cont]  (join "\n" (map render-content (get cont "content"))))
-(defmethod render-content "listItem" [cont]  (join "\n" (map render-content (get cont "content"))))
-(defmethod render-content "mediaSingle" [cont] "TOOD: media single")
-(defmethod render-content "link" [cont] "LINK HERE")
-(defmethod render-content "codeBlock" [cont] "CODE HERE")
+
+(defmethod render-content "orderedList" [data ctx] 
+  "UNORDERED LIST")
+
+(defmethod render-content "bulletList" [data ctx]  
+   (s/join "\n" (render-children (get data "content") ctx)))
+
+(defmethod render-content "listItem" [data ctx]  
+  (let [new-ctx (str ctx "  * ")]
+    (s/join "\n" (render-children (get data "content") ctx))))
+
+(defmethod render-content "mediaSingle" [data ctx] 
+  "TOOD: media single")
+(defmethod render-content "link" [data ctx] 
+  "LINK HERE")
+(defmethod render-content "codeBlock" [data ctx] 
+  "CODE HERE")
+
+
+(defn render-detail-view [issue]
+  (let [desc (get-in issue ["fields" "description"])]
+    ;(println "INFO")
+    (println (get issue "key"))
+    (println (s/join "\n" (reflow-lines  (get-in issue ["fields" "summary"])
+                           "        "
+                           *max-width*)))
+    (println)
+    (println "DESCRIPTION")
+    (render-content desc "        ")))
+               
 
 (def status-kw
   {"Done"                     :done
@@ -66,7 +123,7 @@
    :priority (get-in i ["fields" "priority" "name"])
    :status (status-kw (get-in i ["fields" "status" "name"]))
    :long-status (get-in i ["fields" "status" "name"])
-   :text (render-content (get-in i ["fields" "description"]))
+   :text (render-content (get-in i ["fields" "description"]) "")
    ;:text (get-in i ["fields" "description" "content"])
    })
 
@@ -155,9 +212,8 @@
   (println (-> (jira-get id)
                :body
                j/read-string
-               jdump
-               (get-in ["fields" "description"])
-               (render-content))))
+               #_ jdump
+               (render-detail-view))))
 
 (defn main []
   (if (= 1 (count *command-line-args*))

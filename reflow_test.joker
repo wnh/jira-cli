@@ -1,0 +1,40 @@
+#!/usr/bin/env joker
+(ns scripts.jira.test
+  (:require [joker.string :as s]))
+
+(def longtxt "During testing, we have found an issue where the server is intermittently throwing an error, indicating a database deadlock has occur
+ed. This was first reported in testing by")
+
+(defn count-after-add
+  "how long will the last line be if we add the next word to it?"
+  [line next-word]
+  (+ (count line)
+     (count next-word)
+     ; for the space
+     1))
+
+(defn clean-prefix [prefix]
+  (s/replace prefix #"\S" " "))
+
+(defn reflow-lines [txt first-prefix width]
+  (let [words (s/split txt #"\s+")
+        indent (clean-prefix first-prefix)
+        xlines (reduce (fn [[lines l] next-word]
+                         (if (< width (count-after-add l next-word))
+                           [(conj lines l) (str indent " " next-word)]
+                           [lines (str l " " next-word)]))
+
+                       [[] first-prefix]
+                       words)
+        pr-lines (conj (first xlines) (second xlines))]
+    pr-lines))
+
+(def eight  "        ")
+(def bullet "         * ")
+
+(println "+---------------------------------------------------------------------+")
+(doseq [l (reflow-lines longtxt eight 72)]
+  (println l))
+
+(println "+---------------------------------------------------------------------+")
+(println (s/join "\n" (reflow-lines longtxt bullet 72)))
