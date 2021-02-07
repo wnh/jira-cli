@@ -1,0 +1,159 @@
+#!/usr/bin/env joker
+(ns scripts.jira
+  (:require [joker.string :as s]
+            [joker.json   :as j]
+            [joker.http   :as h]
+            [joker.base64 :refer [encode-string]]))
+
+(defn token []
+  (let [tk (s/trim (slurp "/home/wharding/.atlassian_token"))
+        st (str "wharding@avalancheassociation.ca:" tk)]
+    (encode-string st)))
+
+(defn join
+  "join all strings in `c` with separator `sep`"
+  [sep c]
+  (apply str (interpose sep c)))
+
+(defn ctype? [cont ty]
+  (= (get cont "type") ty))
+
+(defn render-content
+  "Recursively transform issue content into terminal readable string"
+  [cont]
+  (cond (ctype? cont nil) "" ; there is no content, seems to be a thing
+        (ctype? cont "doc") (join "\n"
+                                  (map render-content 
+                                       (get cont "content")))
+        (ctype? cont "paragraph") (join "  " 
+                                        (map render-content (get cont "content")))
+        (ctype? cont "text") (get cont "text")
+        (ctype? cont "hardBreak") "\n"
+        (ctype? cont "orderedList") "UNORDERED LIST"
+        (ctype? cont "bulletList")  (join "\n" (map render-content (get cont "content")))
+        (ctype? cont "listItem")  (join "\n" (map render-content (get cont "content")))
+        (ctype? cont "mediaSingle") "TOOD: media single"
+        (ctype? cont "link") "LINK HERE"
+        (ctype? cont "codeBlock") "CODE HERE"
+        :else (assert false (str "Unknown type: " (get cont "type")))))
+
+(def status-kw 
+  {"Done"                     :done
+   "Sprint Backlog"           :backlog
+   "In progress"              :progress
+   "Awaiting for PR Approval" :pr
+   ;; These are bugs from the INFOEX project 
+   "Open"                     :bug-open
+   "Resolved"                 :bug-done})
+
+(defn issue-view
+  "Extract relevent keys from the raw Jira Issue"
+  [i]
+  ;;(pprint (get-in i ["fields" "description"]))
+  {:key  (get-in i ["key"])
+   :proj (get-in i ["fields" "project" "name"])
+   :type (get-in i ["fields" "issuetype" "name"])
+   :summary (get-in i ["fields" "summary"])
+   :priority (get-in i ["fields" "priority" "name"])
+   :status (status-kw (get-in i ["fields" "status" "name"]))
+   :long-status (get-in i ["fields" "status" "name"])
+   :text (render-content (get-in i ["fields" "description"]))
+   ;:text (get-in i ["fields" "description" "content"])
+   })
+
+(def display-status
+  {:done     "DONE"
+   :backlog  "BKLG"
+   :progress "INPRG"
+   :pr       "PR"
+   :bug-open "BOPEN"
+   :bug-done "BDONE"})
+
+(defn issue-display-short
+  "Show single line issue descripition"
+  [i]
+  (let [[prj n] (s/split (:key i) "-")]
+    (format "%7s %10s-%-5s  %s" 
+            (display-status (:status i))
+            prj
+            n
+            (:summary i))))
+
+(defn issue-display-long
+  "Show full issue descripition with description"
+  [i]
+  (let [hdr (issue-display-short i)]
+    (str hdr "\n" (:text i))))
+
+(defn tk [c n]
+  (take n c))
+
+(defn mp [c f]
+  (map f c))
+
+(defn filter2 [c f]
+  (filter f c))
+
+(defn trace [x]
+  (prn x)
+  x)
+
+(defn jira-req [q]
+  (h/send 
+    {:url (str "https://avalancheassociation.atlassian.net/rest/api/3/search?jql=" q)
+     :headers {"Authorization" (str "Basic " (token))
+               "Accept" "application/json"}}))
+
+(defn jira-get [id]
+  (h/send 
+    {:url (str "https://avalancheassociation.atlassian.net/rest/api/3/issue/" id)
+     :headers {"Authorization" (str "Basic " (token))
+               "Accept" "application/json"}}))
+(defn priority-sort
+  "Transform an issue to a syntetic numeric priority for sorting"  
+  [c]
+  (let [order {"High"   0
+               "Medium" 1
+               "Low"    2}]
+    (sort-by #(order (or (:priority %) 20)) c)))
+
+
+(defn not-done [x]
+  (not (or (= (:status x) :done)
+           (= (:status x) :bug-done))))
+
+(defn show-list []
+  (let [display-fn (if (some #(= % "-l") *command-line-args*)
+                       issue-display-long
+                       issue-display-short)
+        is (-> (jira-req "assignee=currentuser()")
+               :body
+               j/read-string
+               (get "issues")
+               ;(mp trace)
+               (mp issue-view)
+               (filter2 not-done)
+               (priority-sort)
+               (mp display-fn))]
+    (doseq [i is]
+      (println i))))
+
+(defn jdump [x]
+  (println (j/write-string x))
+  x)
+
+(defn show-details [id]
+  ;(println (format "Showing: %s" id))
+  (println (-> (jira-get id)
+               :body
+               j/read-string
+               jdump
+               (get-in ["fields" "description"])
+               (render-content))))
+
+(defn main []
+  (if (= 1 (count *command-line-args*))
+    (show-details (first *command-line-args*))
+    (show-list)))
+
+(main)
