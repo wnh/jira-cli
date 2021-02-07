@@ -15,36 +15,43 @@
   [sep c]
   (apply str (interpose sep c)))
 
-(defn ctype? [cont ty]
-  (= (get cont "type") ty))
+;;; Content rendering for description
 
-(defn render-content
-  "Recursively transform issue content into terminal readable string"
-  [cont]
-  (cond (ctype? cont nil) "" ; there is no content, seems to be a thing
-        (ctype? cont "doc") (join "\n"
-                                  (map render-content 
-                                       (get cont "content")))
-        (ctype? cont "paragraph") (join "  " 
-                                        (map render-content (get cont "content")))
-        (ctype? cont "text") (get cont "text")
-        (ctype? cont "hardBreak") "\n"
-        (ctype? cont "orderedList") "UNORDERED LIST"
-        (ctype? cont "bulletList")  (join "\n" (map render-content (get cont "content")))
-        (ctype? cont "listItem")  (join "\n" (map render-content (get cont "content")))
-        (ctype? cont "mediaSingle") "TOOD: media single"
-        (ctype? cont "link") "LINK HERE"
-        (ctype? cont "codeBlock") "CODE HERE"
-        :else (assert false (str "Unknown type: " (get cont "type")))))
+(defmulti render-content
+  "Recursively transform issue content into terminal readable string based
+  on the 'type'"
+  (fn [c]
+    (get c "type")))
 
-(def status-kw 
+(defmethod render-content nil [cont]
+  ; there is no content, seems to be a thing
+  "")
+(defmethod render-content "doc" [cont]
+  (join "\n"
+        (map render-content (get cont "content"))))
+
+(defmethod render-content "paragraph" [cont]
+  (join "  " (map render-content (get cont "content"))))
+
+(defmethod render-content "text" [cont] (get cont "text"))
+(defmethod render-content "hardBreak" [cont] "\n")
+(defmethod render-content "orderedList" [cont] "UNORDERED LIST")
+(defmethod render-content "bulletList" [cont]  (join "\n" (map render-content (get cont "content"))))
+(defmethod render-content "listItem" [cont]  (join "\n" (map render-content (get cont "content"))))
+(defmethod render-content "mediaSingle" [cont] "TOOD: media single")
+(defmethod render-content "link" [cont] "LINK HERE")
+(defmethod render-content "codeBlock" [cont] "CODE HERE")
+
+(def status-kw
   {"Done"                     :done
    "Sprint Backlog"           :backlog
    "In progress"              :progress
    "Awaiting for PR Approval" :pr
-   ;; These are bugs from the INFOEX project 
+   ;; These are bugs from the INFOEX project
    "Open"                     :bug-open
    "Resolved"                 :bug-done})
+
+(def issue-view-keys)
 
 (defn issue-view
   "Extract relevent keys from the raw Jira Issue"
@@ -73,7 +80,7 @@
   "Show single line issue descripition"
   [i]
   (let [[prj n] (s/split (:key i) "-")]
-    (format "%7s %10s-%-5s  %s" 
+    (format "%7s %10s-%-5s  %s"
             (display-status (:status i))
             prj
             n
@@ -99,18 +106,18 @@
   x)
 
 (defn jira-req [q]
-  (h/send 
+  (h/send
     {:url (str "https://avalancheassociation.atlassian.net/rest/api/3/search?jql=" q)
      :headers {"Authorization" (str "Basic " (token))
                "Accept" "application/json"}}))
 
 (defn jira-get [id]
-  (h/send 
+  (h/send
     {:url (str "https://avalancheassociation.atlassian.net/rest/api/3/issue/" id)
      :headers {"Authorization" (str "Basic " (token))
                "Accept" "application/json"}}))
 (defn priority-sort
-  "Transform an issue to a syntetic numeric priority for sorting"  
+  "Transform an issue to a syntetic numeric priority for sorting"
   [c]
   (let [order {"High"   0
                "Medium" 1
