@@ -6,6 +6,7 @@
             [joker.base64 :refer [encode-string]]))
 
 (def *max-width* 72)
+(def *eight* "        ")
 
 (defn token []
   (let [tk (s/trim (slurp "/home/wharding/.atlassian_token"))
@@ -71,35 +72,64 @@
 (defmethod render-content "hardBreak" [data ctx]
   "\n")
 
-(defmethod render-content "orderedList" [data ctx] 
-  "UNORDERED LIST")
+(defmethod render-content "orderedList" [data ctx]
+  "TODO: ORDERED LIST")
 
-(defmethod render-content "bulletList" [data ctx]  
+(defmethod render-content "bulletList" [data ctx]
    (s/join "\n" (render-children (get data "content") ctx)))
 
-(defmethod render-content "listItem" [data ctx]  
+(defmethod render-content "listItem" [data ctx]
   (let [new-ctx (str ctx "  * ")]
     (s/join "\n" (render-children (get data "content") ctx))))
 
-(defmethod render-content "mediaSingle" [data ctx] 
+(defmethod render-content "mediaSingle" [data ctx]
   "TOOD: media single")
-(defmethod render-content "link" [data ctx] 
-  "LINK HERE")
-(defmethod render-content "codeBlock" [data ctx] 
-  "CODE HERE")
+(defmethod render-content "link" [data ctx]
+  "TODO: LINK HERE")
+(defmethod render-content "codeBlock" [data ctx]
+  "TODO: CODE HERE")
+
+
+(defn get-sprint
+  "this is sketchy."
+  [issue]
+  (let [sprint-list (get-in issue ["fields" "customfield_10005"])
+        sprint? (first sprint-list)]
+    (get sprint? "name")))
 
 
 (defn render-detail-view [issue]
   (let [desc (get-in issue ["fields" "description"])]
-    ;(println "INFO")
+
     (println (get issue "key"))
     (println (s/join "\n" (reflow-lines  (get-in issue ["fields" "summary"])
-                           "        "
+                           *eight*
                            *max-width*)))
     (println)
+
+    (println "INFO")
+    (comment "
+    MAIN-322
+    Epic:   Workflow  ** how do we get this?
+    Priority: High
+    Assignee: Will Harding
+    Labels: None
+    Story: point estimate 5
+    Sprint: Will's first sprint 2 [+1]
+    Reporter: steve
+    Development: Create branch
+    ")
+    (println *eight* "Epic:" (get-in issue ["fields" "parent" "fields" "summary"]))
+    (println *eight* "Type:" (get-in issue ["fields" "issuetype" "name"]))
+    (println *eight* "Priority:" (get-in issue ["fields" "priority" "name"]))
+    (println *eight* "Assignee:" (get-in issue ["fields" "assignee" "displayName"]))
+    (println *eight* "Reporter:" (get-in issue ["fields" "creator" "displayName"]))
+    (if-let [sprint (get-sprint issue)]
+      (println *eight* "Sprint:" sprint))
+    (println)
     (println "DESCRIPTION")
-    (render-content desc "        ")))
-               
+    (render-content desc *eight*)))
+
 
 (def status-kw
   {"Done"                     :done
