@@ -33,8 +33,10 @@
 (defmethod render-content "paragraph" [cont]
   (join "  " (map render-content (get cont "content"))))
 
-(defmethod render-content "text" [cont] (get cont "text"))
-(defmethod render-content "hardBreak" [cont] "\n")
+(defmethod render-content "text" [cont]
+  (get cont "text"))
+(defmethod render-content "hardBreak" [cont]
+  "\n")
 (defmethod render-content "orderedList" [cont] "UNORDERED LIST")
 (defmethod render-content "bulletList" [cont]  (join "\n" (map render-content (get cont "content"))))
 (defmethod render-content "listItem" [cont]  (join "\n" (map render-content (get cont "content"))))
@@ -107,15 +109,15 @@
 
 (defn jira-req [q]
   (h/send
-    {:url (str "https://avalancheassociation.atlassian.net/rest/api/3/search?jql=" q)
-     :headers {"Authorization" (str "Basic " (token))
-               "Accept" "application/json"}}))
+   {:url (str "https://avalancheassociation.atlassian.net/rest/api/3/search?jql=" q)
+    :headers {"Authorization" (str "Basic " (token))
+              "Accept" "application/json"}}))
 
 (defn jira-get [id]
   (h/send
-    {:url (str "https://avalancheassociation.atlassian.net/rest/api/3/issue/" id)
-     :headers {"Authorization" (str "Basic " (token))
-               "Accept" "application/json"}}))
+   {:url (str "https://avalancheassociation.atlassian.net/rest/api/3/issue/" id)
+    :headers {"Authorization" (str "Basic " (token))
+              "Accept" "application/json"}}))
 (defn priority-sort
   "Transform an issue to a syntetic numeric priority for sorting"
   [c]
@@ -124,15 +126,14 @@
                "Low"    2}]
     (sort-by #(order (or (:priority %) 20)) c)))
 
-
 (defn not-done [x]
   (not (or (= (:status x) :done)
            (= (:status x) :bug-done))))
 
 (defn show-list []
   (let [display-fn (if (some #(= % "-l") *command-line-args*)
-                       issue-display-long
-                       issue-display-short)
+                     issue-display-long
+                     issue-display-short)
         is (-> (jira-req "assignee=currentuser()")
                :body
                j/read-string
