@@ -74,7 +74,13 @@
   "\n")
 
 (defmethod render-content "orderedList" [data ctx]
-  "TODO: ORDERED LIST")
+  (let [children (get data "content")
+        indexes (map inc (range))]
+    (->> children
+         (map (fn [n child] (render-content child (str ctx (format "  %2d. " n)))) indexes)
+         (s/join "\n"))
+
+  ))
 
 (defmethod render-content "bulletList" [data ctx]
   (s/join "\n" (render-children (get data "content")
