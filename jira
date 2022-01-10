@@ -2,15 +2,19 @@
 (ns scripts.jira
   (:require [joker.string :as s]
             [joker.json   :as j]
+            [joker.os     :as os]
+            [joker.filepath :as fp]
             [joker.http   :as h]
             [joker.base64 :refer [encode-string]]))
 
+(def *jira-domain* (os/get-env "JIRA_DOMAIN"))
 (def *max-width* 72)
 (def *eight* "        ")
 
+;; token should be in the form "username:password"
 (defn token []
-  (let [tk (s/trim (slurp "/home/wharding/.atlassian_token"))
-        st (str "wharding@avalancheassociation.ca:" tk)]
+  (let [token-file (fp/join (os/get-env "HOME") ".atlassian_token")
+        st (s/trim (slurp token-file))]
     (encode-string st)))
 
 ;;; TEXT REFLOW
@@ -240,13 +244,13 @@
 
 (defn jira-req [q]
   (h/send
-   {:url (str "https://avalancheassociation.atlassian.net/rest/api/3/search?jql=" q)
+   {:url (str "https://" *jira-domain* ".atlassian.net/rest/api/3/search?jql=" q)
     :headers {"Authorization" (str "Basic " (token))
               "Accept" "application/json"}}))
 
 (defn jira-get [id]
   (h/send
-   {:url (str "https://avalancheassociation.atlassian.net/rest/api/3/issue/" id)
+   {:url (str "https://" *jira-domain* ".atlassian.net/rest/api/3/issue/" id)
     :headers {"Authorization" (str "Basic " (token))
               "Accept" "application/json"}}))
 (defn priority-sort
