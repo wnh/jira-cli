@@ -97,6 +97,13 @@
 (defmethod render-content "codeBlock" [data ctx]
   "TODO: CODE HERE")
 
+(defmethod render-content "mention" [data ctx]
+  (let [name (get-in data ["attrs" "text"])
+        out (if (s/includes? name " ")
+              (str "[" name "]")
+              name)]
+    (str "@" out)))
+
 (defmethod render-content "code" [data ctx]
   "TODO: CODE HERE")
 
