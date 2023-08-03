@@ -1,21 +1,26 @@
 #!/usr/bin/env joker
 (ns scripts.jira
-  (:require [joker.string :as s]
-            [joker.json   :as j]
-            [joker.os     :as os]
+  (:require [joker.string   :as s]
+            [joker.json     :as j]
+            [joker.os       :as os]
             [joker.filepath :as fp]
-            [joker.http   :as h]
-            [joker.base64 :refer [encode-string]]))
+            [joker.http     :as h]
+            [joker.base64   :as b64]))
 
-(def *jira-domain* (os/get-env "JIRA_DOMAIN"))
-(def *max-width* 72)
-(def *eight* "        ")
+(def *debug* false)
+(def *jira-domain* (or (os/get-env "JIRA_DOMAIN") "taskhuman"))
+(def *max-width* 80)
+(def *eight* "    ")
+
+(defn debug-pprint [& args]
+  (if *debug*
+    (apply pprint args)))
 
 ;; token should be in the form "username:password"
 (defn token []
   (let [token-file (fp/join (os/get-env "HOME") ".atlassian_token")
         st (s/trim (slurp token-file))]
-    (encode-string st)))
+    (b64/encode-string (str "will@taskhuman.com:" st))))
 
 ;;; TEXT REFLOW
 
@@ -77,11 +82,13 @@
 (defmethod render-content "hardBreak" [data ctx]
   "\n")
 
+
 (defmethod render-content "orderedList" [data ctx]
   (let [children (get data "content")
         indexes (map inc (range))]
     (->> children
-         (map (fn [n child] (render-content child (str ctx (format "  %2d. " n)))) indexes)
+         #_(map (fn [n child] (render-content child (str ctx (format "  %2d. " n)))) indexes)
+         (map (fn [n child] (render-content child (str ctx "       "))) indexes)
          (s/join "\n"))
 
   ))
@@ -95,11 +102,18 @@
 
 (defmethod render-content "mediaSingle" [data ctx]
   "TODO: media single"
-  (prn data))
+  #_(prn data))
+(defmethod render-content "inlineCard" [data ctx]
+  (get-in data ["attrs" "url"])
+  #_(str "<TODO inlineCard...>" (pr-str data)))
 (defmethod render-content "link" [data ctx]
   "TODO: LINK HERE")
 (defmethod render-content "codeBlock" [data ctx]
   "TODO: CODE HERE")
+(defmethod render-content "blockquote" [data ctx]
+  "TODO: blockquote")
+(defmethod render-content "table" [data ctx]
+  "TODO: blockquote")
 
 (defmethod render-content "mention" [data ctx]
   (let [name (get-in data ["attrs" "text"])
@@ -149,17 +163,34 @@
                       (get a "content")))]
     (s/join "\n" chunks)))
 
+
+(defn render-link [link]
+  (if (link "outwardIssue")
+    (println *eight*
+             (format "%-10s [%s] %s   %s"
+                     (get-in link ["outwardIssue" "key"])
+                     (get-in link ["outwardIssue" "fields" "status" "statusCategory" "name"])
+                     (get-in link ["type" "outward"])
+                     (get-in link ["outwardIssue" "fields" "summary"]))))
+  (if (link "inwardIssue")
+    (println *eight*
+             (format "%-10s [%s] %s   %s"
+                     (get-in link ["inwardIssue" "key"])
+                     (get-in link ["inwardIssue" "fields" "status" "statusCategory" "name"])
+                     (get-in link ["type" "inward"])
+                     (get-in link ["inwardIssue" "fields" "summary"])))))
+
+
 (defn render-detail-view [issue]
   (println (get issue "key"))
   (println (s/join "\n" (reflow-lines  (get-in issue ["fields" "summary"])
                                        *eight*
                                        *max-width*)))
   (println)
-  (println (str *eight* "https://avalancheassociation.atlassian.net/browse/" (get issue "key")))
+  (println (str *eight* "https://" *jira-domain* ".atlassian.net/browse/" (get issue "key")))
   (println)
 
   (println "INFO")
-  (println *eight* "Epic:" (get-in issue ["fields" "parent" "fields" "summary"]))
   (println *eight* "Type:" (get-in issue ["fields" "issuetype" "name"]))
   (println *eight* "Priority:" (get-in issue ["fields" "priority" "name"]))
   (println *eight* "Assignee:" (get-in issue ["fields" "assignee" "displayName"]))
@@ -170,6 +201,10 @@
   (if-let [att (render-attachments issue *eight*)]
     (do (println "ATTACHMENTS")
         (println att)))
+  (println "LINKS")
+  (doseq [link (get-in issue ["fields" "issuelinks"])]
+    (render-link link))
+  (println "")
   (println "DESCRIPTION")
   (println (render-content (get-in issue ["fields" "description"]) *eight*))
 
@@ -178,17 +213,6 @@
       (do (println "COMMENTS")
           (doseq [cmt cmts]
             (render-comment cmt *eight*))))))
-
-(def status-kw
-  {"Done"                     :done
-   "Sprint Backlog"           :backlog
-   "In progress"              :progress
-   "Awaiting for PR Approval" :pr
-   ;; These are bugs from the INFOEX project
-   "Open"                     :bug-open
-   "Resolved"                 :bug-done})
-
-(def issue-view-keys)
 
 (defn issue-view
   "Extract relevent keys from the raw Jira Issue"
@@ -199,7 +223,7 @@
    :type (get-in i ["fields" "issuetype" "name"])
    :summary (get-in i ["fields" "summary"])
    :priority (get-in i ["fields" "priority" "name"])
-   :status (status-kw (get-in i ["fields" "status" "name"]))
+   :status (get-in i ["fields" "status" "name"])
    :long-status (get-in i ["fields" "status" "name"])
    :text (render-content (get-in i ["fields" "description"]) "")
    ;:text (get-in i ["fields" "description" "content"])
@@ -217,8 +241,8 @@
   "Show single line issue descripition"
   [i]
   (let [[prj n] (s/split (:key i) "-")]
-    (format "%7s %10s-%-5s  %s"
-            (display-status (:status i))
+    (format "%12s %4s-%-5s  %s"
+            (:status i)
             prj
             n
             (:summary i))))
@@ -243,10 +267,11 @@
   x)
 
 (defn jira-req [q]
-  (h/send
-   {:url (str "https://" *jira-domain* ".atlassian.net/rest/api/3/search?jql=" q)
-    :headers {"Authorization" (str "Basic " (token))
-              "Accept" "application/json"}}))
+  (let [x (h/send
+           {:url (str "https://" *jira-domain* ".atlassian.net/rest/api/3/search?jql=" q)
+            :headers {"Authorization" (str "Basic " (token))
+                      "Accept" "application/json"}})]
+    x))
 
 (defn jira-get [id]
   (h/send
@@ -262,8 +287,8 @@
     (sort-by #(order (or (:priority %) 20)) c)))
 
 (defn not-done [x]
-  (not (or (= (:status x) :done)
-           (= (:status x) :bug-done))))
+  (not= (:status x) "Done"))
+
 
 (defn show-list []
   (let [display-fn (if (some #(= % "-l") *command-line-args*)
@@ -282,7 +307,7 @@
       (println i))))
 
 (defn jdump [x]
-  (println (j/write-string x))
+  (debug-pprint x)
   x)
 
 (defn show-details [id]
@@ -290,7 +315,7 @@
   (-> (jira-get id)
       :body
       j/read-string
-      #_jdump
+      jdump
       (render-detail-view)))
 
 (defn main []
