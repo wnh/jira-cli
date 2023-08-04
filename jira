@@ -103,11 +103,14 @@
 (defmethod render-content "mediaSingle" [data ctx]
   "TODO: media single"
   #_(prn data))
+
 (defmethod render-content "inlineCard" [data ctx]
   (get-in data ["attrs" "url"])
   #_(str "<TODO inlineCard...>" (pr-str data)))
+
 (defmethod render-content "link" [data ctx]
   "TODO: LINK HERE")
+
 (defmethod render-content "codeBlock" [data ctx]
   (let [indent (str ctx "   ")
         code (get-in data ["content" 0 "text"])]
@@ -115,15 +118,17 @@
         (s/split-lines)
         (map #(str indent %))
         (s/join "\n"))))
+
 (defmethod render-content "blockquote" [data ctx]
   "TODO: blockquote")
+
 (defmethod render-content "table" [data ctx]
   "TODO: blockquote")
+
 (defmethod render-content "heading" [data ctx]
   (str "\n"
        ctx (->> "#" (repeat (get-in data ["attrs" "level"])) (apply str))
-       " " (get-in data ["content" 0 "text"]))
-  #_(pr-str "TODO: heading" data))
+       " " (get-in data ["content" 0 "text"])))
 
 (defmethod render-content "mention" [data ctx]
   (let [name (get-in data ["attrs" "text"])
