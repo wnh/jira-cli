@@ -114,6 +114,11 @@
   "TODO: blockquote")
 (defmethod render-content "table" [data ctx]
   "TODO: blockquote")
+(defmethod render-content "heading" [data ctx]
+  (str "\n"
+       ctx (->> "#" (repeat (get-in data ["attrs" "level"])) (apply str))
+       " " (get-in data ["content" 0 "text"]))
+  #_(pr-str "TODO: heading" data))
 
 (defmethod render-content "mention" [data ctx]
   (let [name (get-in data ["attrs" "text"])
@@ -281,14 +286,14 @@
 (defn priority-sort
   "Transform an issue to a syntetic numeric priority for sorting"
   [c]
-  (let [order {"High"   0
-               "Medium" 1
-               "Low"    2}]
-    (sort-by #(order (or (:priority %) 20)) c)))
+  (let [order {"To Do" 0
+               "In Progress" 2
+               "Dev Complete" 3
+               "Won't Do" 4}]
+    (sort-by #(order (or (:status %) 20)) c)))
 
 (defn not-done [x]
   (not= (:status x) "Done"))
-
 
 (defn show-list []
   (let [display-fn (if (some #(= % "-l") *command-line-args*)
