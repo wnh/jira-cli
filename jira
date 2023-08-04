@@ -7,7 +7,7 @@
             [joker.http     :as h]
             [joker.base64   :as b64]))
 
-(def *debug* false)
+(def *debug* (os/get-env "DEBUG"))
 (def *jira-domain* (or (os/get-env "JIRA_DOMAIN") "taskhuman"))
 (def *max-width* 80)
 (def *eight* "    ")
