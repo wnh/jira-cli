@@ -109,7 +109,12 @@
 (defmethod render-content "link" [data ctx]
   "TODO: LINK HERE")
 (defmethod render-content "codeBlock" [data ctx]
-  "TODO: CODE HERE")
+  (let [indent (str ctx "   ")
+        code (get-in data ["content" 0 "text"])]
+    (->> code
+        (s/split-lines)
+        (map #(str indent %))
+        (s/join "\n"))))
 (defmethod render-content "blockquote" [data ctx]
   "TODO: blockquote")
 (defmethod render-content "table" [data ctx]
