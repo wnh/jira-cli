@@ -134,7 +134,7 @@
   (let [name (get-in data ["attrs" "text"])]
     (if (s/includes? name " ")
       (str "[" name "]")
-      name)
+      name)))
 
 (defmethod render-content "code" [data ctx]
   "TODO: CODE HERE")
