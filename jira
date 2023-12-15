@@ -131,11 +131,10 @@
        " " (get-in data ["content" 0 "text"])))
 
 (defmethod render-content "mention" [data ctx]
-  (let [name (get-in data ["attrs" "text"])
-        out (if (s/includes? name " ")
-              (str "[" name "]")
-              name)]
-    (str "@" out)))
+  (let [name (get-in data ["attrs" "text"])]
+    (if (s/includes? name " ")
+      (str "[" name "]")
+      name)
 
 (defmethod render-content "code" [data ctx]
   "TODO: CODE HERE")
